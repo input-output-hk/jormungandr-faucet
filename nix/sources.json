@@ -1,4 +1,28 @@
 {
+    "gitignore": {
+        "branch": "master",
+        "description": "Nix function for filtering local git sources",
+        "homepage": "",
+        "owner": "hercules-ci",
+        "repo": "gitignore",
+        "rev": "31860d428b0d6cc03fb7ca9eca8b99dc3750ee5e",
+        "sha256": "1km1nryf41f0xc7n632vqc8p7wgx5lz7nmz3qm5zj1dr6260jk3m",
+        "type": "tarball",
+        "url": "https://github.com/hercules-ci/gitignore/archive/31860d428b0d6cc03fb7ca9eca8b99dc3750ee5e.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "iohk-nix": {
+        "branch": "jormungandr-master",
+        "description": "nix scripts shared across projects",
+        "homepage": null,
+        "owner": "input-output-hk",
+        "repo": "iohk-nix",
+        "rev": "689cf245da41f5178246802d3318ca610529ed56",
+        "sha256": "0fn3p94iblgi366vr6773h8i6i7b7p1gjcsb7005rsf6z2h71khb",
+        "type": "tarball",
+        "url": "https://github.com/input-output-hk/iohk-nix/archive/689cf245da41f5178246802d3318ca610529ed56.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
     "niv": {
         "branch": "master",
         "description": "Easy dependency management for Nix projects",

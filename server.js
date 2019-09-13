@@ -124,9 +124,10 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       message.as_bytes()
     );
 
-    reply.code(200).send("success");
+    reply.code(200).send(JSON.stringify({success: true}));
   } catch (err) {
     fastify.log.error(err);
+    reply.code(500).send(JSON.stringify({success: false, error: err}));
   }
 });
 

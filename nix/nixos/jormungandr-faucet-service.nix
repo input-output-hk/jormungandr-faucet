@@ -37,11 +37,11 @@ in {
       serviceConfig.PermissionsStartOnly = true;
       preStart = ''
         ls -la /var/lib
-        cp /var/lib/keys/jormungandr-faucet.key /var/lib/private/jormungandr-faucet/private.key
+        cp ${cfg.secretKeyPath} /var/lib/private/jormungandr-faucet/faucet.sk
       '';
 
       script = ''
-        export SECRET_KEY="$(< /var/lib/private/jormungandr-faucet/private.key)"
+        export SECRET_KEY="$(< /var/lib/private/jormungandr-faucet/faucet.sk)"
         ${cfg.package}/bin/faucet
       '';
     };

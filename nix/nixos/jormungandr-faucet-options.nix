@@ -22,7 +22,7 @@ in {
 
     secretKeyPath = mkOption {
       type = types.str;
-      default = "/var/lib/private/jormungandr-faucet/private.key";
+      default = "/var/lib/keys/jormungandr-faucet.sk";
     };
 
     port = mkOption {

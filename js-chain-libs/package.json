@@ -1,0 +1,15 @@
+{
+  "name": "js-chain-libs",
+  "collaborators": [
+    "Enzo Cioppettini <ecioppettini@atixlabs.com>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "js_chain_libs_bg.wasm",
+    "js_chain_libs.js",
+    "js_chain_libs_bg.js",
+    "js_chain_libs.d.ts"
+  ],
+  "main": "js_chain_libs.js",
+  "types": "js_chain_libs.d.ts"
+}

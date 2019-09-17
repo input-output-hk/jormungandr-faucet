@@ -13,3 +13,4 @@ else
 fi
 
 wasm-pack build tmp/js-chain-libs --target nodejs --out-dir ../../js-chain-libs
+rm js-chain-libs/.gitignore

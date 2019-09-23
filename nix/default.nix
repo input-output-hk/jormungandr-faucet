@@ -4,7 +4,7 @@ with {
 
   overlay = self: super: {
     inherit (import sources.niv { }) niv;
-    nodejs = super.nodejs-slim-11_x;
+    nodejs = super.nodejs-11_x;
     inherit (import sources.yarn2nix { pkgs = self; }) mkYarnPackage yarn2nix;
     packages = self.callPackages ./packages.nix { };
     iohkNix = import sources.iohk-nix {

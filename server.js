@@ -3,6 +3,7 @@
 // Require the framework and instantiate it
 const fastify = require("fastify")({ logger: true });
 const fastifyEnv = require("fastify-env");
+const { open: openLmdb } = require("lmdb-store");
 const chainLibs = require("./js-chain-libs/js_chain_libs");
 const jormungandrApi = require("./jormugandr_api.js");
 
@@ -37,6 +38,39 @@ const options = {
   schema,
   dotenv: true
 };
+
+const lastRequests = openLmdb("lastRequests.mdb", {
+  useWritemap: true
+});
+
+// 24 hours
+const TIME_BETWEEN_REQUESTS = 24 * 60 * 60 * 1000;
+
+fastify.addHook("onRequest", (request, reply, done) => {
+  const requestHost = Buffer.from(request.headers.host);
+
+  lastRequests.transaction(() => {
+    const previous = lastRequests.get(requestHost);
+
+    if (previous === undefined) {
+      lastRequests.put(requestHost, Buffer.from(Date.now().toString()));
+      done();
+    } else {
+      const time = Number.parseInt(previous, 10);
+      const now = Date.now();
+
+      if (now - time > TIME_BETWEEN_REQUESTS) {
+        lastRequests.put(requestHost, Buffer.from(Date.now().toString()));
+        done();
+      } else {
+        const retryAt = new Date(TIME_BETWEEN_REQUESTS + time).toISOString();
+
+        reply.code(429);
+        done(new Error(`Try again after ${retryAt}`));
+      }
+    }
+  });
+});
 
 fastify.post("/send-money/:destinationAddress", async (request, reply) => {
   try {
@@ -124,10 +158,10 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       message.as_bytes()
     );
 
-    reply.code(200).send(JSON.stringify({success: true}));
+    reply.code(200).send(JSON.stringify({ success: true }));
   } catch (err) {
     fastify.log.error(err);
-    reply.code(500).send(JSON.stringify({success: false, error: err}));
+    reply.code(500).send(JSON.stringify({ success: false, error: err }));
   }
 });
 

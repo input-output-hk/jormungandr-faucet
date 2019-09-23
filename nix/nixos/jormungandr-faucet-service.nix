@@ -26,6 +26,7 @@ in {
         RestartSec = "10s";
         StartLimitBurst = 50;
         StateDirectory = "jormungandr-faucet";
+        WorkingDirectory = "/var/lib/jormungandr-faucet";
       };
 
       environment = {

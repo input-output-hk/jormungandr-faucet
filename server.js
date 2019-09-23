@@ -10,7 +10,7 @@ const jormungandrApi = require("./jormugandr_api.js");
 // Get config from .env file
 const schema = {
   type: "object",
-  required: ["JORMUNGANDR_API", "SECRET_KEY", "LOVELACES_TO_GIVE"],
+  required: ["JORMUNGANDR_API", "SECRET_KEY", "LOVELACES_TO_GIVE", "SECONDS_BETWEEN_REQUESTS"],
   properties: {
     // The node address
     JORMUNGANDR_API: {
@@ -30,6 +30,11 @@ const schema = {
     LOVELACES_TO_GIVE: {
       type: "number",
       default: 3000
+    },
+    // time between faucet payout requests in seconds
+    SECONDS_BETWEEN_REQUESTS: {
+      type: "number",
+      default: 24 * 60 * 60
     }
   }
 };
@@ -43,9 +48,6 @@ const lastRequests = openLmdb("lastRequests.mdb", {
   useWritemap: true
 });
 
-// 24 hours
-const TIME_BETWEEN_REQUESTS = 24 * 60 * 60 * 1000;
-
 fastify.addHook("onRequest", (request, reply, done) => {
   const requestHost = Buffer.from(request.headers.host);
 
@@ -58,12 +60,13 @@ fastify.addHook("onRequest", (request, reply, done) => {
     } else {
       const time = Number.parseInt(previous, 10);
       const now = Date.now();
+      const delta = fastify.config.SECONDS_BETWEEN_REQUESTS * 1000;
 
-      if (now - time > TIME_BETWEEN_REQUESTS) {
+      if (now - time > delta) {
         lastRequests.put(requestHost, Buffer.from(Date.now().toString()));
         done();
       } else {
-        const retryAt = new Date(TIME_BETWEEN_REQUESTS + time).toISOString();
+        const retryAt = new Date(delta + time).toISOString();
 
         reply.code(429);
         done(new Error(`Try again after ${retryAt}`));

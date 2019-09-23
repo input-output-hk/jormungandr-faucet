@@ -34,5 +34,10 @@ in {
       type = types.int;
       default = 1;
     };
+
+    secondsBetweenRequests = mkOption {
+      type = types.int;
+      default = 24 * 60 * 60;
+    };
   };
 }

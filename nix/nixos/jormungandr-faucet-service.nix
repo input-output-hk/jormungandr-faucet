@@ -32,6 +32,7 @@ in {
         JORMUNGANDR_API = cfg.jormungandrApi;
         PORT = toString cfg.port;
         LOVELACES_TO_GIVE = toString cfg.lovelacesToGive;
+        SECONDS_BETWEEN_REQUESTS = toString cfg.secondsBetweenRequests;
       };
 
       serviceConfig.PermissionsStartOnly = true;

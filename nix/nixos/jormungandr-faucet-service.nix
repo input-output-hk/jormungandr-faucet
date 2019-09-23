@@ -37,7 +37,6 @@ in {
 
       serviceConfig.PermissionsStartOnly = true;
       preStart = ''
-        ls -la /var/lib
         cp ${cfg.secretKeyPath} /var/lib/private/jormungandr-faucet/faucet.sk
         chmod 0644 /var/lib/private/jormungandr-faucet/faucet.sk
       '';

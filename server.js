@@ -10,7 +10,12 @@ const jormungandrApi = require("./jormugandr_api.js");
 // Get config from .env file
 const schema = {
   type: "object",
-  required: ["JORMUNGANDR_API", "SECRET_KEY", "LOVELACES_TO_GIVE", "SECONDS_BETWEEN_REQUESTS"],
+  required: [
+    "JORMUNGANDR_API",
+    "SECRET_KEY",
+    "LOVELACES_TO_GIVE",
+    "SECONDS_BETWEEN_REQUESTS"
+  ],
   properties: {
     // The node address
     JORMUNGANDR_API: {
@@ -69,7 +74,12 @@ fastify.addHook("onRequest", (request, reply, done) => {
         const retryAt = new Date(delta + time).toISOString();
 
         reply.code(429);
-        done(new Error(`Try again after ${retryAt}`));
+        done({
+          statusCode: 429,
+          error: "Too Many Requests",
+          message: `Try again in ${(delta + time - now) / 1000} seconds`,
+          retryAfter: retryAt
+        });
       }
     }
   });

@@ -171,7 +171,11 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       message.as_bytes()
     );
 
-    reply.code(200).send(JSON.stringify({ success: true }));
+    reply.code(200).send({
+      success: true,
+      amount: fastify.config.LOVELACES_TO_GIVE,
+      fee: computedFee
+    });
   } catch (err) {
     fastify.log.error(err);
     reply.code(500).send(JSON.stringify({ success: false, error: err }));

@@ -164,17 +164,25 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
     const signedTx = finalizer.build();
 
     const message = Fragment.from_generated_transaction(signedTx);
+    const messageBytes = message.as_bytes();
+
+    const txIdBytes = message
+      .get_transaction()
+      .id()
+      .as_bytes();
+
+    const txId = Object.values(txIdBytes)
+      .map(n => n.toString(16))
+      .join("");
 
     // Send the transaction
-    await jormungandrApi.postMsg(
-      fastify.config.JORMUNGANDR_API,
-      message.as_bytes()
-    );
+    await jormungandrApi.postMsg(fastify.config.JORMUNGANDR_API, messageBytes);
 
     reply.code(200).send({
       success: true,
       amount: fastify.config.LOVELACES_TO_GIVE,
-      fee: computedFee
+      fee: computedFee,
+      txid: txId
     });
   } catch (err) {
     fastify.log.error(err);

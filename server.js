@@ -54,7 +54,9 @@ const lastRequests = openLmdb("lastRequests.mdb", {
 });
 
 fastify.addHook("onRequest", (request, reply, done) => {
-  const requestHost = Buffer.from(request.headers.host);
+  let ip = request.headers["x-real-ip"];
+  if (!ip) ip = request.headers["host"];
+  const requestHost = Buffer.from(ip);
 
   lastRequests.transaction(() => {
     const previous = lastRequests.get(requestHost);
@@ -112,7 +114,7 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       fastify.config.JORMUNGANDR_API
     );
 
-    const txbuilder = new TransactionBuilder();
+    const txbuilder = TransactionBuilder.new_no_payload();
 
     const secretKey = PrivateKey.from_bech32(fastify.config.SECRET_KEY);
     const faucetAccount = Account.from_public_key(secretKey.to_public());
@@ -142,7 +144,10 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
     );
 
     // The amount is exact, that's why we use `forget()`
-    const finalizedTx = txbuilder.finalize(feeAlgorithm, OutputPolicy.forget());
+    const finalizedTx = txbuilder.seal_with_output_policy(
+      feeAlgorithm,
+      OutputPolicy.forget()
+    );
 
     const finalizer = new TransactionFinalizer(finalizedTx);
 
@@ -154,35 +159,28 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
 
     const witness = Witness.for_account(
       Hash.from_hex(nodeSettings.block0Hash),
-      finalizer.get_txid(),
+      finalizer.get_tx_sign_data_hash(),
       secretKey,
       SpendingCounter.from_u32(accountStatus.counter)
     );
 
     finalizer.set_witness(0, witness);
 
-    const signedTx = finalizer.build();
+    const signedTx = finalizer.finalize();
 
-    const message = Fragment.from_generated_transaction(signedTx);
-    const messageBytes = message.as_bytes();
-
-    const txIdBytes = message
-      .get_transaction()
-      .id()
-      .as_bytes();
-
-    const txId = Object.values(txIdBytes)
-      .map(n => n.toString(16))
-      .join("");
+    const message = Fragment.from_authenticated_transaction(signedTx);
 
     // Send the transaction
-    await jormungandrApi.postMsg(fastify.config.JORMUNGANDR_API, messageBytes);
+    await jormungandrApi.postMsg(
+      fastify.config.JORMUNGANDR_API,
+      message.as_bytes()
+    );
 
     reply.code(200).send({
       success: true,
       amount: fastify.config.LOVELACES_TO_GIVE,
       fee: computedFee,
-      txid: txId
+      txid: uint8array_to_hex(message.id().as_bytes())
     });
   } catch (err) {
     fastify.log.error(err);

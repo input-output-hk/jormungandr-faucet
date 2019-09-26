@@ -101,6 +101,17 @@ export class Address {
   static account_from_public_key(key: PublicKey, discrimination: number): Address;
 }
 /**
+* Type for representing a Transaction with Witnesses (signatures)
+*/
+export class AuthenticatedTransaction {
+  free(): void;
+/**
+* Get a copy of the inner Transaction, discarding the signatures
+* @returns {Transaction} 
+*/
+  transaction(): Transaction;
+}
+/**
 * Amount of the balance in the transaction.
 */
 export class Balance {
@@ -162,24 +173,6 @@ export class Certificate {
 * @returns {Certificate} 
 */
   static stake_delegation(pool_id: StakePoolId, account: PublicKey): Certificate;
-/**
-* @param {StakePoolInfo} pool_info 
-* @returns {Certificate} 
-*/
-  static stake_pool_registration(pool_info: StakePoolInfo): Certificate;
-/**
-* Add signature to certificate
-* @param {PrivateKey} private_key 
-*/
-  sign(private_key: PrivateKey): void;
-/**
-* @returns {Uint8Array} 
-*/
-  as_bytes(): Uint8Array;
-/**
-* @returns {string} 
-*/
-  to_bech32(): string;
 }
 /**
 * Algorithm used to compute transaction fees
@@ -208,15 +201,21 @@ export class Fee {
 export class Fragment {
   free(): void;
 /**
-* @param {GeneratedTransaction} tx 
+* @param {AuthenticatedTransaction} tx 
 * @returns {Fragment} 
 */
-  static from_generated_transaction(tx: GeneratedTransaction): Fragment;
+  static from_authenticated_transaction(tx: AuthenticatedTransaction): Fragment;
+/**
+* Deprecated: Use `from_authenticated_transaction` instead
+* @param {AuthenticatedTransaction} tx 
+* @returns {Fragment} 
+*/
+  static from_generated_transaction(tx: AuthenticatedTransaction): Fragment;
 /**
 * Get a Transaction if the Fragment represents one
-* @returns {GeneratedTransaction} 
+* @returns {AuthenticatedTransaction} 
 */
-  get_transaction(): GeneratedTransaction;
+  get_transaction(): AuthenticatedTransaction;
 /**
 * @returns {Uint8Array} 
 */
@@ -232,7 +231,19 @@ export class Fragment {
 /**
 * @returns {boolean} 
 */
-  is_certificate(): boolean;
+  is_owner_stake_delegation(): boolean;
+/**
+* @returns {boolean} 
+*/
+  is_stake_delegation(): boolean;
+/**
+* @returns {boolean} 
+*/
+  is_pool_registration(): boolean;
+/**
+* @returns {boolean} 
+*/
+  is_pool_management(): boolean;
 /**
 * @returns {boolean} 
 */
@@ -245,6 +256,10 @@ export class Fragment {
 * @returns {boolean} 
 */
   is_update_vote(): boolean;
+/**
+* @returns {FragmentId} 
+*/
+  id(): FragmentId;
 }
 /**
 */
@@ -273,21 +288,6 @@ export class Fragments {
 * @returns {Fragment} 
 */
   get(index: number): Fragment;
-}
-/**
-* Type for representing a Transaction with Witnesses (signatures)
-*/
-export class GeneratedTransaction {
-  free(): void;
-/**
-* @returns {TransactionSignDataHash} 
-*/
-  id(): TransactionSignDataHash;
-/**
-* Get a copy of the inner Transaction, discarding the signatures
-* @returns {Transaction} 
-*/
-  transaction(): Transaction;
 }
 /**
 * Type for representing a generic Hash
@@ -511,31 +511,9 @@ export class SpendingCounter {
 export class StakePoolId {
   free(): void;
 /**
-* @param {string} hex_string 
-* @returns {StakePoolId} 
-*/
-  static from_hex(hex_string: string): StakePoolId;
-/**
 * @returns {string} 
 */
   to_string(): string;
-}
-/**
-*/
-export class StakePoolInfo {
-  free(): void;
-/**
-* @param {U128} serial 
-* @param {PublicKeys} owners 
-* @param {KesPublicKey} kes_public_key 
-* @param {VrfPublicKey} vrf_public_key 
-* @returns {StakePoolInfo} 
-*/
-  constructor(serial: U128, owners: PublicKeys, kes_public_key: KesPublicKey, vrf_public_key: VrfPublicKey);
-/**
-* @returns {StakePoolId} 
-*/
-  id(): StakePoolId;
 }
 /**
 * Type representing a unsigned transaction
@@ -596,26 +574,21 @@ export class Transaction {
 export class TransactionBuilder {
   free(): void;
 /**
+* Deprecated. Use `new_no_payload()` instead
 * @returns {TransactionBuilder} 
 */
   constructor();
 /**
-* Add certificate to the transaction if there isn\'t one already
-* Example
-* ```javascript
-* const certificate = Certificate.stake_delegation(
-*     StakePoolId.from_hex(poolId),
-*     PublicKey.from_bech32(stakeKey)
-* );
-*
-* certificate.sign(PrivateKey.from_bech32(privateKey));
-*
-* const txbuilder = new TransactionBuilder();
-* txbuilder.set_certificate(certificate);
-* ```
-* @param {Certificate} certificate 
+* Create a TransactionBuilder for a transaction without certificate
+* @returns {TransactionBuilder} 
 */
-  set_certificate(certificate: Certificate): void;
+  static new_no_payload(): TransactionBuilder;
+/**
+* Create a TransactionBuilder for a transaction with certificate
+* @param {Certificate} cert 
+* @returns {TransactionBuilder} 
+*/
+  static new_payload(cert: Certificate): TransactionBuilder;
 /**
 * Add input to the transaction
 * @param {Input} input 
@@ -653,7 +626,7 @@ export class TransactionBuilder {
 * see the unchecked_finalize for the non-assisted version
 *
 * Example
-* 
+*
 * ```javascript
 * const feeAlgorithm = Fee.linear_fee(
 *     Value.from_str(\'20\'), Value.from_str(\'5\'), Value.from_str(\'10\')
@@ -668,12 +641,14 @@ export class TransactionBuilder {
 * @param {OutputPolicy} output_policy 
 * @returns {Transaction} 
 */
-  finalize(fee: Fee, output_policy: OutputPolicy): Transaction;
+  seal_with_output_policy(fee: Fee, output_policy: OutputPolicy): Transaction;
 /**
-* Get the current Transaction id, this will change when adding input, outputs and certificates
-* @returns {TransactionSignDataHash} 
+* Deprecated: use `seal_with_output_policy` instead
+* @param {Fee} fee 
+* @param {OutputPolicy} output_policy 
+* @returns {Transaction} 
 */
-  get_txid(): TransactionSignDataHash;
+  finalize(fee: Fee, output_policy: OutputPolicy): Transaction;
 }
 /**
 * Builder pattern implementation for signing a Transaction (adding witnesses)
@@ -709,13 +684,23 @@ export class TransactionFinalizer {
 */
   set_witness(index: number, witness: Witness): void;
 /**
+* Deprecated: Use `get_tx_sign_data_hash` instead\
 * @returns {TransactionSignDataHash} 
 */
   get_txid(): TransactionSignDataHash;
 /**
-* @returns {GeneratedTransaction} 
+* @returns {TransactionSignDataHash} 
 */
-  build(): GeneratedTransaction;
+  get_tx_sign_data_hash(): TransactionSignDataHash;
+/**
+* Deprecated: Use `get_tx_sign_data_hash` instead\
+* @returns {AuthenticatedTransaction} 
+*/
+  build(): AuthenticatedTransaction;
+/**
+* @returns {AuthenticatedTransaction} 
+*/
+  finalize(): AuthenticatedTransaction;
 }
 /**
 * Type for representing the hash of a Transaction, necessary for signing it

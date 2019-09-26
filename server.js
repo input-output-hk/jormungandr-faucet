@@ -56,6 +56,7 @@ const lastRequests = openLmdb("lastRequests.mdb", {
 fastify.addHook("onRequest", (request, reply, done) => {
   let ip = request.headers["x-real-ip"];
   if (!ip) ip = request.headers["host"];
+  fastify.log.info(`Request from ${ip}`);
   const requestHost = Buffer.from(ip);
 
   lastRequests.transaction(() => {

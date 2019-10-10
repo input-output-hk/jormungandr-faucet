@@ -7,6 +7,7 @@
     packageJSON = ../package.json;
     yarnLock = ../yarn.lock;
     yarnNix = ../yarn.nix;
+    inherit nodejs;
 
     yarnPreBuild = ''
       mkdir -p $HOME/.node-gyp/${nodejs.version}

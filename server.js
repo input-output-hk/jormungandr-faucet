@@ -97,13 +97,16 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       Input,
       Value,
       Fee,
-      TransactionFinalizer,
       Fragment,
       PrivateKey,
       Witness,
       SpendingCounter,
       Hash,
       Account,
+      InputOutputBuilder,
+      PayloadAuthData,
+      Payload,
+      Witnesses,
       // eslint-disable-next-line camelcase
       uint8array_to_hex
     } = await chainLibs;
@@ -115,7 +118,7 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       fastify.config.JORMUNGANDR_API
     );
 
-    const txbuilder = TransactionBuilder.new_no_payload();
+    const iobuilder = InputOutputBuilder.empty();
 
     const secretKey = PrivateKey.from_bech32(fastify.config.SECRET_KEY);
     const faucetAccount = Account.from_public_key(secretKey.to_public());
@@ -131,9 +134,9 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       Value.from_str(inputAmount.toString())
     );
 
-    txbuilder.add_input(input);
+    iobuilder.add_input(input);
 
-    txbuilder.add_output(
+    iobuilder.add_output(
       Address.from_string(request.params.destinationAddress),
       Value.from_str(fastify.config.LOVELACES_TO_GIVE.toString())
     );
@@ -145,12 +148,11 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
     );
 
     // The amount is exact, that's why we use `forget()`
-    const finalizedTx = txbuilder.seal_with_output_policy(
+    const IOs = iobuilder.seal_with_output_policy(
+      Payload.no_payload(),
       feeAlgorithm,
       OutputPolicy.forget()
     );
-
-    const finalizer = new TransactionFinalizer(finalizedTx);
 
     // To get the account counter used for signing
     const accountStatus = await jormungandrApi.getAccountStatus(
@@ -158,18 +160,25 @@ fastify.post("/send-money/:destinationAddress", async (request, reply) => {
       uint8array_to_hex(secretKey.to_public().as_bytes())
     );
 
+    const builderSetWitness = new TransactionBuilder()
+      .no_payload()
+      .set_ios(IOs.inputs(), IOs.outputs());
+
     const witness = Witness.for_account(
       Hash.from_hex(nodeSettings.block0Hash),
-      finalizer.get_tx_sign_data_hash(),
+      builderSetWitness.get_auth_data_for_witness(),
       secretKey,
       SpendingCounter.from_u32(accountStatus.counter)
     );
 
-    finalizer.set_witness(0, witness);
+    const witnesses = Witnesses.new();
+    witnesses.add(witness);
 
-    const signedTx = finalizer.finalize();
+    const signedTx = builderSetWitness
+      .set_witnesses(witnesses)
+      .set_payload_auth(PayloadAuthData.for_no_payload());
 
-    const message = Fragment.from_authenticated_transaction(signedTx);
+    const message = Fragment.from_transaction(signedTx);
 
     // Send the transaction
     await jormungandrApi.postMsg(

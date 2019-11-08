@@ -9,5 +9,6 @@ pkgs.mkShell {
     cacert
     rustc
     cargo
+    python
   ];
 }

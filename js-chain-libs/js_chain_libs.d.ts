@@ -29,14 +29,28 @@ export class Account {
 */
   static from_address(address: Address): Account;
 /**
+* @param {number} discriminant 
 * @returns {Address} 
 */
-  to_address(): Address;
+  to_address(discriminant: number): Address;
 /**
 * @param {PublicKey} key 
 * @returns {Account} 
 */
   static from_public_key(key: PublicKey): Account;
+/**
+* @returns {AccountIdentifier} 
+*/
+  to_identifier(): AccountIdentifier;
+}
+/**
+*/
+export class AccountIdentifier {
+  free(): void;
+/**
+* @returns {string} 
+*/
+  to_hex(): string;
 }
 /**
 * An address of any type, this can be one of
@@ -110,6 +124,10 @@ export class AuthenticatedTransaction {
 * @returns {Transaction} 
 */
   transaction(): Transaction;
+/**
+* @returns {Witnesses} 
+*/
+  witnesses(): Witnesses;
 }
 /**
 * Amount of the balance in the transaction.
@@ -120,6 +138,18 @@ export class Balance {
 * @returns {any} 
 */
   get_sign(): any;
+/**
+* @returns {boolean} 
+*/
+  is_positive(): boolean;
+/**
+* @returns {boolean} 
+*/
+  is_negative(): boolean;
+/**
+* @returns {boolean} 
+*/
+  is_zero(): boolean;
 /**
 * Get value without taking into account if the balance is positive or negative
 * @returns {Value} 
@@ -148,7 +178,7 @@ export class Block {
 */
   parent_id(): BlockId;
 /**
-*This involves copying all the messages
+*This involves copying all the fragments
 * @returns {Fragments} 
 */
   fragments(): Fragments;
@@ -167,12 +197,21 @@ export class BlockId {
 export class Certificate {
   free(): void;
 /**
-* Create a stake delegation certificate from account (stake key) to pool_id
-* @param {StakePoolId} pool_id 
-* @param {PublicKey} account 
+* Create a Certificate for StakeDelegation
+* @param {StakeDelegation} stake_delegation 
 * @returns {Certificate} 
 */
-  static stake_delegation(pool_id: StakePoolId, account: PublicKey): Certificate;
+  static stake_delegation(stake_delegation: StakeDelegation): Certificate;
+/**
+* Create a Certificate for PoolRegistration
+* @param {PoolRegistration} pool_registration 
+* @returns {Certificate} 
+*/
+  static stake_pool_registration(pool_registration: PoolRegistration): Certificate;
+/**
+* @param {PrivateKey} private_key 
+*/
+  sign(private_key: PrivateKey): void;
 }
 /**
 * Algorithm used to compute transaction fees
@@ -330,6 +369,14 @@ export class Input {
 */
   get_type(): string;
 /**
+* @returns {boolean} 
+*/
+  is_account(): boolean;
+/**
+* @returns {boolean} 
+*/
+  is_utxo(): boolean;
+/**
 * @returns {Value} 
 */
   value(): Value;
@@ -416,6 +463,39 @@ export class Outputs {
   get(index: number): Output;
 }
 /**
+*/
+export class PoolId {
+  free(): void;
+/**
+* @param {string} hex_string 
+* @returns {PoolId} 
+*/
+  static from_hex(hex_string: string): PoolId;
+/**
+* @returns {string} 
+*/
+  to_string(): string;
+}
+/**
+*/
+export class PoolRegistration {
+  free(): void;
+/**
+* @param {U128} serial 
+* @param {PublicKeys} owners 
+* @param {number} management_threshold 
+* @param {TimeOffsetSeconds} start_validity 
+* @param {KesPublicKey} kes_public_key 
+* @param {VrfPublicKey} vrf_public_key 
+* @returns {PoolRegistration} 
+*/
+  constructor(serial: U128, owners: PublicKeys, management_threshold: number, start_validity: TimeOffsetSeconds, kes_public_key: KesPublicKey, vrf_public_key: VrfPublicKey);
+/**
+* @returns {PoolId} 
+*/
+  id(): PoolId;
+}
+/**
 * ED25519 signing key, either normal or extended
 */
 export class PrivateKey {
@@ -449,6 +529,16 @@ export class PrivateKey {
 * @returns {string} 
 */
   to_bech32(): string;
+/**
+* @param {Uint8Array} bytes 
+* @returns {PrivateKey} 
+*/
+  static from_extended_bytes(bytes: Uint8Array): PrivateKey;
+/**
+* @param {Uint8Array} bytes 
+* @returns {PrivateKey} 
+*/
+  static from_normal_bytes(bytes: Uint8Array): PrivateKey;
 }
 /**
 * ED25519 key used as public key
@@ -469,6 +559,11 @@ export class PublicKey {
 * @returns {Uint8Array} 
 */
   as_bytes(): Uint8Array;
+/**
+* @param {Uint8Array} bytes 
+* @returns {PublicKey} 
+*/
+  static from_bytes(bytes: Uint8Array): PublicKey;
 }
 /**
 */
@@ -508,12 +603,26 @@ export class SpendingCounter {
 }
 /**
 */
-export class StakePoolId {
+export class StakeDelegation {
   free(): void;
 /**
-* @returns {string} 
+* Create a stake delegation object from account (stake key) to pool_id
+* @param {PoolId} pool_id 
+* @param {PublicKey} account 
+* @returns {StakeDelegation} 
 */
-  to_string(): string;
+  static new(pool_id: PoolId, account: PublicKey): StakeDelegation;
+}
+/**
+*/
+export class TimeOffsetSeconds {
+  free(): void;
+/**
+* Parse the given string into a 64 bits unsigned number
+* @param {string} number 
+* @returns {TimeOffsetSeconds} 
+*/
+  static from_string(number: string): TimeOffsetSeconds;
 }
 /**
 * Type representing a unsigned transaction
@@ -535,6 +644,10 @@ export class Transaction {
 * @returns {Outputs} 
 */
   outputs(): Outputs;
+/**
+* @returns {Transaction} 
+*/
+  clone(): Transaction;
 }
 /**
 * Builder pattern implementation for making a Transaction
@@ -837,4 +950,18 @@ export class Witness {
 * @returns {string} 
 */
   to_bech32(): string;
+}
+/**
+*/
+export class Witnesses {
+  free(): void;
+/**
+* @returns {number} 
+*/
+  size(): number;
+/**
+* @param {number} index 
+* @returns {Witness} 
+*/
+  get(index: number): Witness;
 }

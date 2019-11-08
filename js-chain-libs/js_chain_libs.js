@@ -13,10 +13,10 @@ function getNodeBufferMemory() {
 
 function passStringToWasm(arg) {
 
-    const size = Buffer.byteLength(arg);
-    const ptr = wasm.__wbindgen_malloc(size);
-    getNodeBufferMemory().write(arg, ptr, size);
-    WASM_VECTOR_LEN = size;
+    const len = Buffer.byteLength(arg);
+    const ptr = wasm.__wbindgen_malloc(len);
+    getNodeBufferMemory().write(arg, ptr, len);
+    WASM_VECTOR_LEN = len;
     return ptr;
 }
 
@@ -28,7 +28,9 @@ function getInt32Memory() {
     return cachegetInt32Memory;
 }
 
-let cachedTextDecoder = new TextDecoder('utf-8');
+let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+
+cachedTextDecoder.decode();
 
 let cachegetUint8Memory = null;
 function getUint8Memory() {
@@ -42,6 +44,13 @@ function getStringFromWasm(ptr, len) {
     return cachedTextDecoder.decode(getUint8Memory().subarray(ptr, ptr + len));
 }
 
+function passArray8ToWasm(arg) {
+    const ptr = wasm.__wbindgen_malloc(arg.length * 1);
+    getUint8Memory().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
 function getArrayU8FromWasm(ptr, len) {
     return getUint8Memory().subarray(ptr / 1, ptr / 1 + len);
 }
@@ -51,13 +60,6 @@ function _assertClass(instance, klass) {
         throw new Error(`expected instance of ${klass.name}`);
     }
     return instance.ptr;
-}
-
-function passArray8ToWasm(arg) {
-    const ptr = wasm.__wbindgen_malloc(arg.length * 1);
-    getUint8Memory().set(arg, ptr / 1);
-    WASM_VECTOR_LEN = arg.length;
-    return ptr;
 }
 
 const heap = new Array(32);
@@ -142,10 +144,11 @@ class Account {
         return Account.__wrap(ret);
     }
     /**
+    * @param {number} discriminant
     * @returns {Address}
     */
-    to_address() {
-        const ret = wasm.account_to_address(this.ptr);
+    to_address(discriminant) {
+        const ret = wasm.account_to_address(this.ptr, discriminant);
         return Address.__wrap(ret);
     }
     /**
@@ -159,8 +162,45 @@ class Account {
         const ret = wasm.account_from_public_key(ptr0);
         return Account.__wrap(ret);
     }
+    /**
+    * @returns {AccountIdentifier}
+    */
+    to_identifier() {
+        const ret = wasm.account_to_identifier(this.ptr);
+        return AccountIdentifier.__wrap(ret);
+    }
 }
 module.exports.Account = Account;
+/**
+*/
+class AccountIdentifier {
+
+    static __wrap(ptr) {
+        const obj = Object.create(AccountIdentifier.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    free() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        wasm.__wbg_accountidentifier_free(ptr);
+    }
+    /**
+    * @returns {string}
+    */
+    to_hex() {
+        const retptr = 8;
+        const ret = wasm.accountidentifier_to_hex(retptr, this.ptr);
+        const memi32 = getInt32Memory();
+        const v0 = getStringFromWasm(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1]).slice();
+        wasm.__wbindgen_free(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1] * 1);
+        return v0;
+    }
+}
+module.exports.AccountIdentifier = AccountIdentifier;
 /**
 * An address of any type, this can be one of
 * * A utxo-based address without delegation (single)
@@ -294,6 +334,13 @@ class AuthenticatedTransaction {
         const ret = wasm.authenticatedtransaction_transaction(this.ptr);
         return Transaction.__wrap(ret);
     }
+    /**
+    * @returns {Witnesses}
+    */
+    witnesses() {
+        const ret = wasm.authenticatedtransaction_witnesses(this.ptr);
+        return Witnesses.__wrap(ret);
+    }
 }
 module.exports.AuthenticatedTransaction = AuthenticatedTransaction;
 /**
@@ -320,6 +367,27 @@ class Balance {
     get_sign() {
         const ret = wasm.balance_get_sign(this.ptr);
         return takeObject(ret);
+    }
+    /**
+    * @returns {boolean}
+    */
+    is_positive() {
+        const ret = wasm.balance_is_positive(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * @returns {boolean}
+    */
+    is_negative() {
+        const ret = wasm.balance_is_negative(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * @returns {boolean}
+    */
+    is_zero() {
+        const ret = wasm.balance_is_zero(this.ptr);
+        return ret !== 0;
     }
     /**
     * Get value without taking into account if the balance is positive or negative
@@ -375,7 +443,7 @@ class Block {
         return BlockId.__wrap(ret);
     }
     /**
-    *This involves copying all the messages
+    *This involves copying all the fragments
     * @returns {Fragments}
     */
     fragments() {
@@ -432,20 +500,37 @@ class Certificate {
         wasm.__wbg_certificate_free(ptr);
     }
     /**
-    * Create a stake delegation certificate from account (stake key) to pool_id
-    * @param {StakePoolId} pool_id
-    * @param {PublicKey} account
+    * Create a Certificate for StakeDelegation
+    * @param {StakeDelegation} stake_delegation
     * @returns {Certificate}
     */
-    static stake_delegation(pool_id, account) {
-        _assertClass(pool_id, StakePoolId);
-        const ptr0 = pool_id.ptr;
-        pool_id.ptr = 0;
-        _assertClass(account, PublicKey);
-        const ptr1 = account.ptr;
-        account.ptr = 0;
-        const ret = wasm.certificate_stake_delegation(ptr0, ptr1);
+    static stake_delegation(stake_delegation) {
+        _assertClass(stake_delegation, StakeDelegation);
+        const ptr0 = stake_delegation.ptr;
+        stake_delegation.ptr = 0;
+        const ret = wasm.certificate_stake_delegation(ptr0);
         return Certificate.__wrap(ret);
+    }
+    /**
+    * Create a Certificate for PoolRegistration
+    * @param {PoolRegistration} pool_registration
+    * @returns {Certificate}
+    */
+    static stake_pool_registration(pool_registration) {
+        _assertClass(pool_registration, PoolRegistration);
+        const ptr0 = pool_registration.ptr;
+        pool_registration.ptr = 0;
+        const ret = wasm.certificate_stake_pool_registration(ptr0);
+        return Certificate.__wrap(ret);
+    }
+    /**
+    * @param {PrivateKey} private_key
+    */
+    sign(private_key) {
+        _assertClass(private_key, PrivateKey);
+        const ptr0 = private_key.ptr;
+        private_key.ptr = 0;
+        wasm.certificate_sign(this.ptr, ptr0);
     }
 }
 module.exports.Certificate = Certificate;
@@ -807,6 +892,20 @@ class Input {
         return v0;
     }
     /**
+    * @returns {boolean}
+    */
+    is_account() {
+        const ret = wasm.input_is_account(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * @returns {boolean}
+    */
+    is_utxo() {
+        const ret = wasm.input_is_utxo(this.ptr);
+        return ret !== 0;
+    }
+    /**
     * @returns {Value}
     */
     value() {
@@ -1003,6 +1102,98 @@ class Outputs {
 }
 module.exports.Outputs = Outputs;
 /**
+*/
+class PoolId {
+
+    static __wrap(ptr) {
+        const obj = Object.create(PoolId.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    free() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        wasm.__wbg_poolid_free(ptr);
+    }
+    /**
+    * @param {string} hex_string
+    * @returns {PoolId}
+    */
+    static from_hex(hex_string) {
+        const ret = wasm.poolid_from_hex(passStringToWasm(hex_string), WASM_VECTOR_LEN);
+        return PoolId.__wrap(ret);
+    }
+    /**
+    * @returns {string}
+    */
+    to_string() {
+        const retptr = 8;
+        const ret = wasm.poolid_to_string(retptr, this.ptr);
+        const memi32 = getInt32Memory();
+        const v0 = getStringFromWasm(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1]).slice();
+        wasm.__wbindgen_free(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1] * 1);
+        return v0;
+    }
+}
+module.exports.PoolId = PoolId;
+/**
+*/
+class PoolRegistration {
+
+    static __wrap(ptr) {
+        const obj = Object.create(PoolRegistration.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    free() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        wasm.__wbg_poolregistration_free(ptr);
+    }
+    /**
+    * @param {U128} serial
+    * @param {PublicKeys} owners
+    * @param {number} management_threshold
+    * @param {TimeOffsetSeconds} start_validity
+    * @param {KesPublicKey} kes_public_key
+    * @param {VrfPublicKey} vrf_public_key
+    * @returns {PoolRegistration}
+    */
+    constructor(serial, owners, management_threshold, start_validity, kes_public_key, vrf_public_key) {
+        _assertClass(serial, U128);
+        const ptr0 = serial.ptr;
+        serial.ptr = 0;
+        _assertClass(owners, PublicKeys);
+        const ptr1 = owners.ptr;
+        owners.ptr = 0;
+        _assertClass(start_validity, TimeOffsetSeconds);
+        const ptr2 = start_validity.ptr;
+        start_validity.ptr = 0;
+        _assertClass(kes_public_key, KesPublicKey);
+        const ptr3 = kes_public_key.ptr;
+        kes_public_key.ptr = 0;
+        _assertClass(vrf_public_key, VrfPublicKey);
+        const ptr4 = vrf_public_key.ptr;
+        vrf_public_key.ptr = 0;
+        const ret = wasm.poolregistration_new(ptr0, ptr1, management_threshold, ptr2, ptr3, ptr4);
+        return PoolRegistration.__wrap(ret);
+    }
+    /**
+    * @returns {PoolId}
+    */
+    id() {
+        const ret = wasm.poolregistration_id(this.ptr);
+        return PoolId.__wrap(ret);
+    }
+}
+module.exports.PoolRegistration = PoolRegistration;
+/**
 * ED25519 signing key, either normal or extended
 */
 class PrivateKey {
@@ -1068,6 +1259,22 @@ class PrivateKey {
         wasm.__wbindgen_free(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1] * 1);
         return v0;
     }
+    /**
+    * @param {Uint8Array} bytes
+    * @returns {PrivateKey}
+    */
+    static from_extended_bytes(bytes) {
+        const ret = wasm.privatekey_from_extended_bytes(passArray8ToWasm(bytes), WASM_VECTOR_LEN);
+        return PrivateKey.__wrap(ret);
+    }
+    /**
+    * @param {Uint8Array} bytes
+    * @returns {PrivateKey}
+    */
+    static from_normal_bytes(bytes) {
+        const ret = wasm.privatekey_from_normal_bytes(passArray8ToWasm(bytes), WASM_VECTOR_LEN);
+        return PrivateKey.__wrap(ret);
+    }
 }
 module.exports.PrivateKey = PrivateKey;
 /**
@@ -1111,6 +1318,14 @@ class PublicKey {
         const v0 = getArrayU8FromWasm(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1]).slice();
         wasm.__wbindgen_free(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1] * 1);
         return v0;
+    }
+    /**
+    * @param {Uint8Array} bytes
+    * @returns {PublicKey}
+    */
+    static from_bytes(bytes) {
+        const ret = wasm.publickey_from_bytes(passArray8ToWasm(bytes), WASM_VECTOR_LEN);
+        return PublicKey.__wrap(ret);
     }
 }
 module.exports.PublicKey = PublicKey;
@@ -1200,27 +1415,67 @@ class SpendingCounter {
 module.exports.SpendingCounter = SpendingCounter;
 /**
 */
-class StakePoolId {
+class StakeDelegation {
+
+    static __wrap(ptr) {
+        const obj = Object.create(StakeDelegation.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
 
     free() {
         const ptr = this.ptr;
         this.ptr = 0;
 
-        wasm.__wbg_stakepoolid_free(ptr);
+        wasm.__wbg_stakedelegation_free(ptr);
     }
     /**
-    * @returns {string}
+    * Create a stake delegation object from account (stake key) to pool_id
+    * @param {PoolId} pool_id
+    * @param {PublicKey} account
+    * @returns {StakeDelegation}
     */
-    to_string() {
-        const retptr = 8;
-        const ret = wasm.stakepoolid_to_string(retptr, this.ptr);
-        const memi32 = getInt32Memory();
-        const v0 = getStringFromWasm(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1]).slice();
-        wasm.__wbindgen_free(memi32[retptr / 4 + 0], memi32[retptr / 4 + 1] * 1);
-        return v0;
+    static new(pool_id, account) {
+        _assertClass(pool_id, PoolId);
+        const ptr0 = pool_id.ptr;
+        pool_id.ptr = 0;
+        _assertClass(account, PublicKey);
+        const ptr1 = account.ptr;
+        account.ptr = 0;
+        const ret = wasm.stakedelegation_new(ptr0, ptr1);
+        return StakeDelegation.__wrap(ret);
     }
 }
-module.exports.StakePoolId = StakePoolId;
+module.exports.StakeDelegation = StakeDelegation;
+/**
+*/
+class TimeOffsetSeconds {
+
+    static __wrap(ptr) {
+        const obj = Object.create(TimeOffsetSeconds.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    free() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        wasm.__wbg_timeoffsetseconds_free(ptr);
+    }
+    /**
+    * Parse the given string into a 64 bits unsigned number
+    * @param {string} number
+    * @returns {TimeOffsetSeconds}
+    */
+    static from_string(number) {
+        const ret = wasm.timeoffsetseconds_from_string(passStringToWasm(number), WASM_VECTOR_LEN);
+        return TimeOffsetSeconds.__wrap(ret);
+    }
+}
+module.exports.TimeOffsetSeconds = TimeOffsetSeconds;
 /**
 * Type representing a unsigned transaction
 */
@@ -1262,6 +1517,13 @@ class Transaction {
     outputs() {
         const ret = wasm.transaction_outputs(this.ptr);
         return Outputs.__wrap(ret);
+    }
+    /**
+    * @returns {Transaction}
+    */
+    clone() {
+        const ret = wasm.transaction_clone(this.ptr);
+        return Transaction.__wrap(ret);
     }
 }
 module.exports.Transaction = Transaction;
@@ -1858,6 +2120,40 @@ class Witness {
     }
 }
 module.exports.Witness = Witness;
+/**
+*/
+class Witnesses {
+
+    static __wrap(ptr) {
+        const obj = Object.create(Witnesses.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    free() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        wasm.__wbg_witnesses_free(ptr);
+    }
+    /**
+    * @returns {number}
+    */
+    size() {
+        const ret = wasm.witnesses_size(this.ptr);
+        return ret >>> 0;
+    }
+    /**
+    * @param {number} index
+    * @returns {Witness}
+    */
+    get(index) {
+        const ret = wasm.witnesses_get(this.ptr, index);
+        return Witness.__wrap(ret);
+    }
+}
+module.exports.Witnesses = Witnesses;
 
 module.exports.__wbindgen_string_new = function(arg0, arg1) {
     const ret = getStringFromWasm(arg0, arg1);
@@ -1869,7 +2165,8 @@ module.exports.__wbindgen_object_drop_ref = function(arg0) {
 };
 
 module.exports.__wbindgen_json_serialize = function(arg0, arg1) {
-    const ret = JSON.stringify(getObject(arg1));
+    const obj = getObject(arg1);
+    const ret = JSON.stringify(obj === undefined ? null : obj);
     const ret0 = passStringToWasm(ret);
     const ret1 = WASM_VECTOR_LEN;
     getInt32Memory()[arg0 / 4 + 0] = ret0;
@@ -1881,23 +2178,23 @@ module.exports.__wbindgen_is_undefined = function(arg0) {
     return ret;
 };
 
-module.exports.__wbg_buffer_d31feadf69cb45fc = function(arg0) {
+module.exports.__wbg_buffer_ef21d491a7c39636 = function(arg0) {
     const ret = getObject(arg0).buffer;
     return addHeapObject(ret);
 };
 
-module.exports.__wbg_length_b6e0c5630f641946 = function(arg0) {
-    const ret = getObject(arg0).length;
-    return ret;
-};
-
-module.exports.__wbg_new_ed7079cf157e44d5 = function(arg0) {
+module.exports.__wbg_new_3d6d9032174a593f = function(arg0) {
     const ret = new Uint8Array(getObject(arg0));
     return addHeapObject(ret);
 };
 
-module.exports.__wbg_set_2aae8dbe165bf1a3 = function(arg0, arg1, arg2) {
+module.exports.__wbg_set_271114abb626ccb3 = function(arg0, arg1, arg2) {
     getObject(arg0).set(getObject(arg1), arg2 >>> 0);
+};
+
+module.exports.__wbg_length_906ccf3f0ad7bb55 = function(arg0) {
+    const ret = getObject(arg0).length;
+    return ret;
 };
 
 module.exports.__wbg_new_3a746f2619705add = function(arg0, arg1) {
@@ -1920,11 +2217,6 @@ module.exports.__wbg_self_ac379e780a0d8b94 = function(arg0) {
     return addHeapObject(ret);
 };
 
-module.exports.__wbg_require_6461b1e9a0d7c34a = function(arg0, arg1) {
-    const ret = require(getStringFromWasm(arg0, arg1));
-    return addHeapObject(ret);
-};
-
 module.exports.__wbg_crypto_1e4302b85d4f64a2 = function(arg0) {
     const ret = getObject(arg0).crypto;
     return addHeapObject(ret);
@@ -1935,12 +2227,17 @@ module.exports.__wbg_getRandomValues_1b4ba144162a5c9e = function(arg0) {
     return addHeapObject(ret);
 };
 
-module.exports.__wbg_getRandomValues_1ef11e888e5228e9 = function(arg0, arg1, arg2) {
-    getObject(arg0).getRandomValues(getArrayU8FromWasm(arg1, arg2));
+module.exports.__wbg_require_6461b1e9a0d7c34a = function(arg0, arg1) {
+    const ret = require(getStringFromWasm(arg0, arg1));
+    return addHeapObject(ret);
 };
 
 module.exports.__wbg_randomFillSync_1b52c8482374c55b = function(arg0, arg1, arg2) {
     getObject(arg0).randomFillSync(getArrayU8FromWasm(arg1, arg2));
+};
+
+module.exports.__wbg_getRandomValues_1ef11e888e5228e9 = function(arg0, arg1, arg2) {
+    getObject(arg0).getRandomValues(getArrayU8FromWasm(arg1, arg2));
 };
 
 module.exports.__wbindgen_throw = function(arg0, arg1) {

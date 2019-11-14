@@ -1,4 +1,7 @@
-node_modules/
-tmp/
-*.mdb
-*.mdb-lock
+*.sqlite
+*.sqlite-*
+/docs/
+/lib/
+/bin/
+/.shards/
+*.dwarf

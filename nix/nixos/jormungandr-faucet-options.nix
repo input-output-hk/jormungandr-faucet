@@ -8,16 +8,23 @@ in {
   options.services.jormungandr-faucet = {
     package = mkOption {
       type = types.package;
-      default = (import ../. {}).packages.jormungandr-faucet-js;
+      default = (import ../. {}).packages.jormungandr-faucet-cr;
       defaultText = "jormungandr-faucet";
       description = ''
         The jormungandr-faucet package to be used
       '';
     };
 
+    jormungandrCliPackage = mkOption {
+      type = types.package;
+      description = ''
+        Package for the `jcli` executable.
+      '';
+    };
+
     jormungandrApi = mkOption {
       type = types.str;
-      default = "http://localhost:8443/api/v0";
+      default = "http://localhost:8443/api";
     };
 
     secretKeyPath = mkOption {

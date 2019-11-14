@@ -23,29 +23,26 @@ in {
         DynamicUser = true;
         Restart = "always";
         User = "jormungandr-faucet";
-        RestartSec = "10s";
-        StartLimitBurst = 50;
         StateDirectory = "jormungandr-faucet";
         WorkingDirectory = "/var/lib/jormungandr-faucet";
+        PermissionsStartOnly = true;
+        ExecStart = "${cfg.package}/bin/server";
       };
 
       environment = {
-        JORMUNGANDR_API = cfg.jormungandrApi;
+        JORMUNGANDR_RESTAPI_URL = cfg.jormungandrApi;
         PORT = toString cfg.port;
         LOVELACES_TO_GIVE = toString cfg.lovelacesToGive;
         SECONDS_BETWEEN_REQUESTS = toString cfg.secondsBetweenRequests;
+        SECRET_KEY = "/var/lib/private/jormungandr-faucet/faucet.sk";
       };
 
-      serviceConfig.PermissionsStartOnly = true;
       preStart = ''
         cp ${cfg.secretKeyPath} /var/lib/private/jormungandr-faucet/faucet.sk
         chmod 0644 /var/lib/private/jormungandr-faucet/faucet.sk
       '';
 
-      script = ''
-        export SECRET_KEY="$(< /var/lib/private/jormungandr-faucet/faucet.sk)"
-        ${cfg.package}/bin/faucet
-      '';
+      path = [ cfg.jormungandrCliPackage ];
     };
   };
 }

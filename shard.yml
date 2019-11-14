@@ -1,0 +1,17 @@
+name: jormungandr-faucet
+version: 0.1.0
+
+authors:
+  - Michael Fellinger <michael.fellinger@iohk.io>
+
+targets:
+  jormungandr-faucet:
+    main: src/jormungandr-faucet.cr
+
+dependencies:
+  sqlite3:
+    github: crystal-lang/crystal-sqlite3
+
+crystal: 0.30.1
+
+license: MIT

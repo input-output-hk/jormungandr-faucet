@@ -47,12 +47,7 @@ module Jormungandr
     alias Allow = Bool
     alias Response = {status: HTTP::Status, body: SendFundsResult | NotFoundResult | RateLimitResult}
     alias SendFundsResult = {success: Bool, amount: UInt64, fee: Int32, txid: String}
-    alias RateLimitResult = {
-      statusCode: Int32,
-      error: String,
-      message: String,
-      retryAfter: Time
-    }
+    alias RateLimitResult = {statusCode: Int32, error: String, message: String, retryAfter: Time}
     alias NotFoundResult = {statusCode: Int32, error: String, message: String}
 
     @amount : UInt64
@@ -61,13 +56,40 @@ module Jormungandr
 
     def initialize(@amount, @db)
       @settings = Settings.get
+
       @db.scalar "PRAGMA journal_mode=WAL"
-      @db.exec <<-SQL
-        CREATE TABLE IF NOT EXISTS requests (
-          host VARCHAR UNIQUE PRIMARY KEY,
-          seen TIME
-        )
-      SQL
+
+      migrations
+    end
+
+    # recursively increment version until no migrations are left
+    # Note that we cannot `DROP COLUMN`
+    # see https://www.sqlite.org/faq.html#q11
+    def migrations
+      version = @db.scalar("PRAGMA main.user_version").as(Int64)
+
+      case version
+      when 0
+        migrate <<-SQL
+          CREATE TABLE IF NOT EXISTS requests (
+            host VARCHAR UNIQUE PRIMARY KEY NOT NULL,
+            seen TIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        SQL
+      when 1
+        migrate <<-SQL
+          ALTER TABLE requests ADD COLUMN hash VARCHAR NOT NULL DEFAULT ''
+        SQL
+      else
+        return
+      end
+
+      @db.exec "PRAGMA main.user_version = #{version + 1}"
+      migrations
+    end
+
+    def migrate(statement : String)
+      @db.exec statement
     end
 
     def on_request(context : HTTP::Server::Context) : Response
@@ -158,10 +180,12 @@ module Jormungandr
       ip = Socket::IPAddress.parse("tcp://#{remote}").address
       allow_after = Time.now - TIME_BETWEEN_REQUESTS
 
-      @db.query("SELECT seen FROM requests where host = ? AND seen > ?", ip, allow_after) do |rs|
+      found = nil
+
+      select_seen(ip, allow_after) do |rs|
         rs.each do
           seen = rs.read(Time)
-          return {
+          found = {
             time:      seen,
             allow:     false,
             try_again: seen + TIME_BETWEEN_REQUESTS,
@@ -169,8 +193,12 @@ module Jormungandr
         end
       end
 
-      @db.exec <<-SQL, ip, Time.now
-        INSERT OR REPLACE INTO requests VALUES (?, ?)
+      if found
+        return found.not_nil!
+      end
+
+      @db.exec(<<-SQL, ip, Time.now, @settings.block0Hash)
+        INSERT OR REPLACE INTO requests VALUES (?, ?, ?)
       SQL
 
       {
@@ -180,6 +208,15 @@ module Jormungandr
       }
     end
 
+    def select_seen(ip, allow_after, &block : DB::ResultSet -> Nil)
+      @db.query(<<-SQL, ip, allow_after, @settings.block0Hash, &block)
+        SELECT seen FROM requests
+          WHERE host = ?
+          AND seen > ?
+          AND hash = ?
+          LIMIT 1
+      SQL
+    end
 
     def wallet
       Path[ENV.fetch("SECRET_KEY")]
@@ -197,8 +234,13 @@ module Jormungandr
 
     def send_funds(address : String) : SendFundsResult
       digest = OpenSSL::Digest.new("SHA256")
-      digest.update("faucet.#{address}.#{Process.pid}.#{Time.now}")
-      tmp_dir = File.join(Dir.tempdir, digest.hexdigest)
+      digest.update([
+        address,
+        Process.pid,
+        Time.utc,
+        @settings.block0Hash,
+      ].join)
+      tmp_dir = File.join(Dir.tempdir, "faucet", digest.hexdigest)
 
       Dir.mkdir_p(tmp_dir)
 

@@ -6,7 +6,7 @@ pkgs.mkShell {
     crystal
     shards
     sqliteInteractive
-    sqlite
+    (lowPrio sqlite)
     crystal2nix
   ];
 }
